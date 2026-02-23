@@ -30,6 +30,7 @@ import static org.apache.tomcat.util.openssl.openssl_h.SSL_get1_peer_certificate
 public class openssl_h_Compatibility {
 
     public static final boolean OPENSSL;
+    public static final boolean OPENSSL1;
     public static final boolean OPENSSL3;
     public static final boolean BORINGSSL;
     public static final boolean LIBRESSL;
@@ -40,6 +41,7 @@ public class openssl_h_Compatibility {
     static {
         String versionString = OpenSSL_version(0).getString(0);
         OPENSSL = versionString.contains("OpenSSL");
+        OPENSSL1 = OPENSSL && OpenSSL_version_num() < 0x3000000fL;
         OPENSSL3 = OPENSSL && OpenSSL_version_num() >= 0x3000000fL;
         BORINGSSL = versionString.contains("BoringSSL");
         LIBRESSL = versionString.contains("LibreSSL");
@@ -148,6 +150,8 @@ public class openssl_h_Compatibility {
     // OpenSSL 1.1 SSL_get_peer_certificate
     public static MemorySegment SSL_get_peer_certificate(MemorySegment s) {
         if (OPENSSL3) {
+            // This could be using SSL_get0_peer_certificate instead, but all the other implementations
+            // use SSL_get_peer_certificate which is equivalent to SSL_get1_peer_certificate
             return SSL_get1_peer_certificate(s);
         } else {
             class Holder {
