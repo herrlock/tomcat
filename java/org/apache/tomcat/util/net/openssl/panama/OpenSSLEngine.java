@@ -830,15 +830,23 @@ public final class OpenSSLEngine extends SSLEngine implements SSLUtil.ProtocolIn
 
     private byte[] getPeerCertificate() {
         try (var localArena = Arena.ofConfined()) {
-            MemorySegment/* (X509*) */ x509 = openssl_h_Compatibility.SSL_get_peer_certificate(state.ssl);
+            // Use the new SSL_get0_peer_certificate call for OpenSSL 3+ to avoid having to call free
+            MemorySegment/* (X509*) */ x509 =
+                    (openssl_h_Compatibility.OPENSSL3) ? SSL_get0_peer_certificate(state.ssl)
+                            : openssl_h_Compatibility.SSL_get_peer_certificate(state.ssl);
             MemorySegment bufPointer = localArena.allocateFrom(ValueLayout.ADDRESS, MemorySegment.NULL);
             int length = i2d_X509(x509, bufPointer);
             if (length <= 0) {
+                if (!openssl_h_Compatibility.OPENSSL3) {
+                    X509_free(x509);
+                }
                 return null;
             }
             MemorySegment buf = bufPointer.get(ValueLayout.ADDRESS, 0);
             byte[] certificate = buf.reinterpret(length, localArena, null).toArray(ValueLayout.JAVA_BYTE);
-            X509_free(x509);
+            if (!openssl_h_Compatibility.OPENSSL3) {
+                X509_free(x509);
+            }
             OPENSSL_free(buf);
             return certificate;
         }
